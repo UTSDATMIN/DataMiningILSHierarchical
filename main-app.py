@@ -7,10 +7,12 @@ import numpy as np
 from plotly.subplots import make_subplots
 from scipy.cluster.hierarchy import dendrogram, linkage
 from methods.dbscan_manual import dbscan_manual, dbscan_summary
+from scipy.cluster.hierarchy import fcluster
+
 
 df = pd.read_csv("data/Kuesioner Identifikasi Pola Gaya Belajar Mahasiswa melalui Metode Clustering (Responses) - Form responses 1.csv", sep=None, engine="python")
 
-meta_cols = df.columns[:5].tolist()
+meta_cols = df.columns[:5].tolist();
 q_cols = [f"Q{i}" for i in range(1, 21)]
 rename_map = {old: new for old, new in zip(df.columns[5:5+20], q_cols)}
 df = df.rename(columns=rename_map)
@@ -153,9 +155,77 @@ def agglomerative_clustering(X, n_clusters=2):
             labels[idx] = cluster_id
     return labels
 
-# ---- Run clustering ----
-labels = agglomerative_clustering(X, n_clusters=2)
-kuisoner_data["Cluster"] = ["Cluster " + str(l+1) for l in labels]
+# # ---- Run clustering ----
+# labels = agglomerative_clustering(X, n_clusters=2)
+# kuisoner_data["Cluster"] = ["Cluster " + str(l+1) for l in labels]
+# # ---- Ringkasan rata-rata skor per cluster ----
+# cluster_means = scores.copy()
+# cluster_means["Cluster"] = kuisoner_data["Cluster"]
+# cluster_summary = cluster_means.groupby("Cluster").mean().reset_index()
+
+# # Fungsi interpretasi otomatis
+# def interpret_cluster(row):
+#     desc = []
+#     desc.append("Active" if row["AR_num"] >= 3 else "Reflective")
+#     desc.append("Sensing" if row["SI_num"] >= 3 else "Intuitive")
+#     desc.append("Visual" if row["VV_num"] >= 3 else "Verbal")
+#     desc.append("Sequential" if row["QG_num"] >= 3 else "Global")
+#     return ", ".join(desc)
+
+# cluster_summary["Karakteristik"] = cluster_summary.apply(interpret_cluster, axis=1)
+
+# # ---- Tampilkan ringkasan naratif di Streamlit ----
+# st.subheader("Interpretasi Otomatis")
+# for _, row in cluster_summary.iterrows():
+#     st.write(
+#         f"**{row['Cluster']}** → {row['Karakteristik']} "
+#         f"(Rata-rata skor: AR={row['AR_num']:.2f}, "
+#         f"SI={row['SI_num']:.2f}, VV={row['VV_num']:.2f}, "
+#         f"QG={row['QG_num']:.2f})"
+#     )
+
+# ---- Run clustering (Ward -> 4 cluster) ----
+# gunakan linkage dari scipy lalu buat flat clusters sebanyak 4
+Z = linkage(X, method="ward")                     # buat matriks linkage (hierarchical)
+labels = fcluster(Z, 4, criterion="maxclust")     # buat 4 cluster dari Z
+kuisoner_data["Cluster"] = ["Cluster " + str(l) for l in labels]
+
+# ---- Ringkasan rata-rata skor per cluster ----
+cluster_means = scores.copy()
+cluster_means["Cluster"] = kuisoner_data["Cluster"]
+cluster_summary = cluster_means.groupby("Cluster").mean().reset_index()
+
+# ---- Fungsi interpretasi otomatis (bisa dimodifikasi ambang datanya) ----
+def interpret_cluster(row, threshold=3.0):
+    # threshold = nilai cut-off (1..5) untuk memutuskan label dominan
+    parts = []
+    parts.append("Active" if row["AR_num"] >= threshold else "Reflective")
+    parts.append("Sensing" if row["SI_num"] >= threshold else "Intuitive")
+    parts.append("Visual" if row["VV_num"] >= threshold else "Verbal")
+    parts.append("Sequential" if row["QG_num"] >= threshold else "Global")
+    return ", ".join(parts)
+
+cluster_summary["Karakteristik"] = cluster_summary.apply(interpret_cluster, axis=1)
+
+# ---- Fungsi untuk membuat narasi lebih lengkap per cluster ----
+def describe_cluster(row, total_count):
+    cluster = row["Cluster"]
+    n = int((kuisoner_data["Cluster"] == cluster).sum())
+    pct = n / total_count * 100
+    chars = row["Karakteristik"]
+    return (f"{cluster}: berisi {n} peserta ({pct:.1f}% dari total). "
+            f"Karakteristik dominan: {chars}. "
+            f"Rata-rata skor — AR={row['AR_num']:.2f}, SI={row['SI_num']:.2f}, "
+            f"VV={row['VV_num']:.2f}, QG={row['QG_num']:.2f}.")
+
+# ---- Tampilkan ringkasan naratif di Streamlit ----
+st.subheader("Interpretasi Otomatis (4 Cluster)")
+total = len(kuisoner_data)
+for _, row in cluster_summary.iterrows():
+    st.write(describe_cluster(row, total))
+# juga tampilkan tabel ringkasan untuk referensi angka
+st.dataframe(cluster_summary.set_index("Cluster"))
+
 
 # ---- Questions ----
 questions = {
