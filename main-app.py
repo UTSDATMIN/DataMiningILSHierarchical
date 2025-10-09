@@ -3,27 +3,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
+from plotly.subplots import make_subplots
 from scipy.cluster.hierarchy import dendrogram, linkage
+from methods.dbscan_manual import dbscan_manual, dbscan_summary
 
-# # ---- Dummy dataset ----
-# dummy_data = pd.read_json("dummy_data.json")
+df = pd.read_csv("data/Kuesioner Identifikasi Pola Gaya Belajar Mahasiswa melalui Metode Clustering (Responses) - Form responses 1.csv", sep=None, engine="python")
 
-# # ---- Mapping categorical to numeric ----
-# mappings = {
-#     'AR': {'Active': 1, 'Reflective': 0},
-#     'SI': {'Sensing': 1, 'Intuitive': 0},
-#     'VV': {'Visual': 1, 'Verbal': 0},
-#     'QG': {'Sequential': 1, 'Global': 0}
-# }
-# numerical_data = dummy_data.copy()
-# for col, mapping in mappings.items():
-#     numerical_data[f"{col}_num"] = numerical_data[col].map(mapping)
-
-df = pd.read_csv("Kuesioner Identifikasi Pola Gaya Belajar Mahasiswa melalui Metode Clustering (Responses) - Form responses 1.csv", sep=None, engine="python")
-
-# Example: keep the first 5 meta columns as-is, rename the rest to Q1..Q20
 meta_cols = df.columns[:5].tolist()
 q_cols = [f"Q{i}" for i in range(1, 21)]
 rename_map = {old: new for old, new in zip(df.columns[5:5+20], q_cols)}
@@ -67,7 +53,7 @@ ANS_MAP = {
 
 enc = df.copy()
 for q in q_cols:
-    enc[q] = enc[q].map(ANS_MAP[q]).astype("Int64")  # Int64 allows NA if something didn't match
+    enc[q] = enc[q].map(ANS_MAP[q]).astype("Int64") 
 
 def sumcols(cols): return enc[cols].astype("float").sum(axis=1)
 
@@ -96,7 +82,6 @@ labels = pd.DataFrame({
     "QG_label": scores["QG_num"].map(lambda s: label_dim(s, "Sequential","Global")),
 })
 
-# Also the categorical poles your app expects:
 def pole(score, a_label, b_label):
     return a_label if score >= 3 else b_label
 
@@ -107,13 +92,12 @@ app_cols = pd.DataFrame({
     "QG": scores["QG_num"].map(lambda s: pole(s,"Sequential","Global")),
 })
 
-# Prefer NIM if present; otherwise make an incremental ID
 if "NIM" in df.columns:
     ID = df["NIM"]
 else:
     ID = pd.RangeIndex(start=1, stop=len(df)+1, step=1)
 
-dummy_data = pd.DataFrame({
+kuisoner_data = pd.DataFrame({
     "ID": ID,
     "AR": app_cols["AR"],
     "SI": app_cols["SI"],
@@ -121,11 +105,9 @@ dummy_data = pd.DataFrame({
     "QG": app_cols["QG"],
 })
 
-
 # ---- Hierarchical clustering ----
 X = scores[["AR_num", "SI_num", "VV_num", "QG_num"]].values
 
-# ---- Helper functions ----Z = linkage(X, method='ward')
 def euclidean_distance(a, b):
     return np.sqrt(np.sum((a - b)**2))
 
@@ -134,7 +116,6 @@ def ward_distance(cluster_a, cluster_b, X):
     points_a = X[cluster_a]
     points_b = X[cluster_b]
     merged = np.vstack([points_a, points_b])
-    # SSE (sum of squared errors) before and after merging
     mean_a, mean_b, mean_m = points_a.mean(axis=0), points_b.mean(axis=0), merged.mean(axis=0)
     sse_a = ((points_a - mean_a)**2).sum()
     sse_b = ((points_b - mean_b)**2).sum()
@@ -162,7 +143,6 @@ def agglomerative_clustering(X, n_clusters=2):
         i, j = to_merge
         new_cluster = clusters[i] + clusters[j]
 
-        # Rebuild cluster list
         clusters = [c for k, c in enumerate(clusters) if k not in (i, j)]
         clusters.append(new_cluster)
 
@@ -175,7 +155,7 @@ def agglomerative_clustering(X, n_clusters=2):
 
 # ---- Run clustering ----
 labels = agglomerative_clustering(X, n_clusters=2)
-dummy_data["Cluster"] = ["Cluster " + str(l+1) for l in labels]
+kuisoner_data["Cluster"] = ["Cluster " + str(l+1) for l in labels]
 
 # ---- Questions ----
 questions = {
@@ -188,8 +168,27 @@ questions = {
 # ---- App Layout ----
 st.title("ILS Hierarchical Clustering Demo")
 
-st.subheader("Dummy Data with Clusters")
-st.dataframe(dummy_data)
+st.subheader("Data with Clusters")
+st.dataframe(kuisoner_data)
+
+st.sidebar.header("⚙️ Pilih Metode Clustering")
+clustering_method = st.sidebar.selectbox("Metode:", ["Hierarchical (Ward)", "DBSCAN (Manual)"])
+
+if clustering_method == "Hierarchical (Ward)":
+    labels = agglomerative_clustering(X, n_clusters=2)
+    kuisoner_data["Cluster"] = ["Cluster " + str(l+1) for l in labels]
+
+else:  # DBSCAN manual
+    eps = st.sidebar.slider("DBSCAN eps (radius)", 0.1, 2.0, 0.6, 0.1)
+    min_pts = st.sidebar.slider("minPts", 2, 10, 3, 1)
+    labels = dbscan_manual(X, eps=eps, min_pts=min_pts)
+    kuisoner_data["Cluster"] = [f"Cluster {l}" if l != -1 else "Noise" for l in labels]
+
+    summary = dbscan_summary(labels)
+    st.sidebar.write("**DBSCAN Summary (Manual)**")
+    st.sidebar.write(f"- Clusters: {summary['clusters']}")
+    st.sidebar.write(f"- Noise points: {summary['noise_points']}")
+
 
 # ---- Visualizations ----
 st.subheader("📊 Cluster Visualizations")
@@ -197,7 +196,7 @@ st.subheader("📊 Cluster Visualizations")
 tab1, tab2, tab3, tab4 = st.tabs(["Cluster Distribution", "Learning Styles", "Dendrogram (with library)", "Dendogram"])
 
 with tab1:
-    cluster_counts = dummy_data['Cluster'].value_counts()
+    cluster_counts = kuisoner_data['Cluster'].value_counts()
     fig_pie = px.pie(
         values=cluster_counts.values,
         names=cluster_counts.index,
@@ -230,7 +229,7 @@ with tab2:
     positions = [(1,1), (1,2), (2,1), (2,2)]
 
     for i, dim in enumerate(dimensions):
-        counts = dummy_data[dim].value_counts()
+        counts = kuisoner_data[dim].value_counts()
         row, col = positions[i]
         fig_styles.add_trace(
 
@@ -248,7 +247,7 @@ with tab3:
     st.subheader("🔗 Hierarchical Clustering Dendrogram")
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    dendrogram(Z, labels=dummy_data['ID'].tolist(), ax=ax, leaf_rotation=90)
+    dendrogram(Z, labels=kuisoner_data['ID'].tolist(), ax=ax, leaf_rotation=90)
     plt.title("Dendrogram of Learning Style Clusters")
     plt.xlabel("Student ID")
     plt.ylabel("Distance")
@@ -329,7 +328,7 @@ if st.button("Submit"):
     # Predict cluster manually using same model
     dists = np.linalg.norm(X - user_vector, axis=1)
     nearest_idx = np.argmin(dists)
-    cluster = dummy_data.iloc[nearest_idx]['Cluster']
+    cluster = kuisoner_data.iloc[nearest_idx]['Cluster']
 
     st.success("Hasil Profil Anda:")
     st.write(f"Active–Reflective: {answers['AR']}")
