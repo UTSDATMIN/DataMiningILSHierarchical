@@ -4,24 +4,31 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
+import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.cluster.hierarchy import dendrogram
 from sklearn.preprocessing import StandardScaler
-from methods.dbscan_manual import dbscan_manual, dbscan_summary
-from methods.heatmap_cluster import render_heatmap_tab
-from methods.clustering_manual import agglomerative_with_history
 
-
-# --- our modules ---
+# --- our modules / This is manually coded logic in methods/s---
 from methods.data_loader import load_data
 from methods.scoring import encode_answers, build_features
 from methods.clustering_manual import agglomerative_clustering
 from methods.interpretation import interpret_cluster, describe_cluster
+from methods.cluster_profile import render_cluster_profile_tab
+from methods.dbscan_manual import dbscan_manual, dbscan_summary
+from methods.heatmap_cluster import render_heatmap_tab
+from methods.clustering_manual import agglomerative_with_history
 from methods.visualization import (
     figures_cluster_distribution,
     figure_learning_style_subplots,
     figure_dendrogram_with_library,
     figure_custom_dendrogram,
+)
+
+st.set_page_config(
+    page_title="ILS Clustering Dashboard",
+    layout="wide",           
+    initial_sidebar_state="expanded"
 )
 
 # ---------------------- DATA LOAD  -----------------------
@@ -37,8 +44,18 @@ scores, labels, app_cols, kuisoner_data, X = build_features(df, enc)
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(scores)
 
+
+# ---- Sidebar clustering method (same logic & names) ----
+st.sidebar.header("⚙️ Pilih Metode Clustering")
+clustering_method = st.sidebar.selectbox("Metode:", ["Hierarchical (Ward)", "DBSCAN (Manual)"])
+if clustering_method == "Hierarchical (Ward)":
+    n_clusters = st.sidebar.slider("Jumlah Cluster (k):", 2, 10, 4)
+else:
+    eps = st.sidebar.slider("DBSCAN eps (radius)", 0.1, 2.0, 0.6, 0.1)
+    min_pts = st.sidebar.slider("minPts", 2, 10, 3, 1)
+
 # ---- Jalankan manual hierarchical clustering (Ward) ----
-labels4 = agglomerative_clustering(X_scaled, n_clusters=4)
+labels4 = agglomerative_clustering(X_scaled, n_clusters=n_clusters)
 kuisoner_data["Cluster"] = ["Cluster " + str(l) for l in labels4]
 
 # ---- Ringkasan rata-rata skor per cluster ----
@@ -70,48 +87,122 @@ questions = {
     "QG": ("Saya lebih suka belajar dengan:", ["Langkah runtut", "Gambaran besar dulu"]),
 }
 # ---- App Layout (same title) ----
-st.title("ILS Hierarchical Clustering Demo")
+st.title("Dashboard Analisis Pola Gaya Belajar")
 
-st.subheader("Data with Clusters")
-st.dataframe(kuisoner_data)
-
-# ---- Sidebar clustering method (same logic & names) ----
-st.sidebar.header("⚙️ Pilih Metode Clustering")
-clustering_method = st.sidebar.selectbox("Metode:", ["Hierarchical (Ward)", "DBSCAN (Manual)"])
-
+# ---- Run clustering based on selected method ----
 if clustering_method == "Hierarchical (Ward)":
-    labels2 = agglomerative_clustering(X, n_clusters=2)  # (kept raw X per your code)
-    kuisoner_data["Cluster"] = ["Cluster " + str(l+1) for l in labels2]
-else:  # DBSCAN manual
+    # Use the number of clusters specified in the sidebar
+    labels = agglomerative_clustering(X_scaled, n_clusters=n_clusters)
+    kuisoner_data["Cluster"] = ["Cluster " + str(l + 1) for l in labels]
+
+else:  # --- DBSCAN (Manual) ---
     eps = st.sidebar.slider("DBSCAN eps (radius)", 0.1, 2.0, 0.6, 0.1)
     min_pts = st.sidebar.slider("minPts", 2, 10, 3, 1)
-    labels_db = dbscan_manual(X, eps=eps, min_pts=min_pts)
-    kuisoner_data["Cluster"] = [f"Cluster {l}" if l != -1 else "Noise" for l in labels_db]
-    summary = dbscan_summary(labels_db)
-    st.sidebar.write("**DBSCAN Summary (Manual)**")
+
+    labels = dbscan_manual(X_scaled, eps=eps, min_pts=min_pts)
+    kuisoner_data["Cluster"] = [
+        f"Cluster {l + 1}" if l != -1 else "Noise" for l in labels
+    ]
+
+    # Sidebar summary
+    summary = dbscan_summary(labels)
+    st.sidebar.write("**📊 DBSCAN Summary (Manual)**")
     st.sidebar.write(f"- Clusters: {summary['clusters']}")
     st.sidebar.write(f"- Noise points: {summary['noise_points']}")
 
+
 # ---- Visualizations (same tabs and content) ----
 st.subheader("📊 Cluster Visualizations")
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Cluster Distribution", "Learning Styles", "Dendrogram (with library)", "Dendogram", "Automatic Interpretation", "Heatmap Cluster"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Distribusi Cluster", "Gaya Belajar", "Dendrogram", "Analisis Profil Cluster", "Interpretasi Otomatis", "Cluster Heatmap"])
 
 with tab1:
+    # --- Cluster Distribution Section ---
+    st.subheader("📊 Cluster Distribution Overview")
+
+    # Create both figures
     fig_pie, fig_bar = figures_cluster_distribution(kuisoner_data)
-    st.plotly_chart(fig_pie, use_container_width=True)
-    st.plotly_chart(fig_bar, use_container_width=True)
+
+    # Place charts side by side
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.plotly_chart(fig_pie, width='content')
+
+    with col2:
+        st.plotly_chart(fig_bar, width='content')
+
+    # Show the data table below the charts
+    st.markdown("---")
+    st.subheader("📋 Data with Cluster Assignments")
+    st.dataframe(
+        kuisoner_data,
+        width='content',
+        hide_index=True
+    )
 
 with tab2:
-    fig_styles = figure_learning_style_subplots(kuisoner_data)
-    st.plotly_chart(fig_styles, use_container_width=True)
+    st.subheader("🎨 Learning Style Preferences")
+
+    # --- Create a wide two-column layout ---
+    col1, col2 = st.columns([1, 3])  # left (dropdown) narrow, right (chart) wide
+
+    with col1:
+        st.markdown("### 🎛️ Select Dimension")
+        style_choice = st.selectbox(
+            "Learning Style Dimension:",
+            [
+                "All (2×2 Subplot)",
+                "Active vs Reflective (AR)",
+                "Sensing vs Intuitive (SI)",
+                "Visual vs Verbal (VV)",
+                "Sequential vs Global (QG)"
+            ],
+            label_visibility="collapsed"  # hides the "Learning Style Dimension:" label for a cleaner look
+        )
+
+    with col2:
+        if style_choice == "All (2×2 Subplot)":
+            fig_styles = figure_learning_style_subplots(kuisoner_data)
+            st.plotly_chart(fig_styles, width='content')
+        else:
+            mapping = {
+                "Active vs Reflective (AR)": "AR",
+                "Sensing vs Intuitive (SI)": "SI",
+                "Visual vs Verbal (VV)": "VV",
+                "Sequential vs Global (QG)": "QG"
+            }
+            dim = mapping[style_choice]
+            counts = kuisoner_data[dim].value_counts()
+
+            # Create single bar dynamically
+            fig_single = go.Figure()
+            fig_single.add_trace(go.Bar(
+                x=counts.index,
+                y=counts.values,
+                marker_color=['#FF6B6B', '#4ECDC4'],
+                showlegend=False
+            ))
+
+            fig_single.update_layout(
+                title=f"Distribution of {style_choice}",
+                xaxis_title="Style",
+                yaxis_title="Number of Students",
+                height=500,
+                margin=dict(t=60, l=40, r=40, b=40)
+            )
+            st.plotly_chart(fig_single, width='content')
+
 
 with tab3:
     fig = figure_dendrogram_with_library(X, kuisoner_data['ID'].tolist())
     st.pyplot(fig)
 
 with tab4:
-    fig_custom = figure_custom_dendrogram(X)
-    st.pyplot(fig_custom)
+    # make a copy to avoid modifying original
+    scores_with_cluster = scores.copy()
+    scores_with_cluster["Cluster"] = kuisoner_data["Cluster"].values
+    render_cluster_profile_tab(scores_with_cluster)
+
 
 with tab5:
     st.subheader("Interpretasi Otomatis (4 Cluster)")
