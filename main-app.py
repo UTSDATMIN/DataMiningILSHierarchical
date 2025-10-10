@@ -2,21 +2,23 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
+import plotly.graph_objects as go
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.cluster.hierarchy import dendrogram
 from sklearn.preprocessing import StandardScaler
+from methods.dbscan_manual import dbscan_manual, dbscan_summary
+from methods.heatmap_cluster import render_heatmap_tab
+from methods.clustering_manual import agglomerative_with_history
 
-# --- our modules / This is manually coded logic in methods/s---
+
+# --- our modules ---
 from methods.data_loader import load_data
 from methods.scoring import encode_answers, build_features
 from methods.clustering_manual import agglomerative_clustering
 from methods.interpretation import interpret_cluster, describe_cluster
 from methods.cluster_profile import render_cluster_profile_tab
-from methods.dbscan_manual import dbscan_manual, dbscan_summary
-from methods.heatmap_cluster import render_heatmap_tab
-from methods.clustering_manual import agglomerative_with_history
 from methods.visualization import (
     figures_cluster_distribution,
     figure_learning_style_subplots,
@@ -210,7 +212,7 @@ with tab5:
     st.dataframe(cluster_summary_view.set_index("Cluster"))     
 
 with tab6:
-    render_heatmap_tab(X_scaled, scores, agglomerative_with_history)
+    render_heatmap_tab(X_scaled, scores, agglomerative_with_history, n_clusters)
 
 # ---- User Input  ----
 st.subheader("Jawab Pertanyaan")
