@@ -33,9 +33,24 @@ st.set_page_config(
 )
 
 # ---------------------- DATA LOAD  -----------------------
-df, meta_cols, q_cols = load_data(
-    "data/Kuesioner Identifikasi Pola Gaya Belajar Mahasiswa melalui Metode Clustering (Responses) - Form responses 1.csv"
+# ---------------------- DATA LOAD  -----------------------
+st.sidebar.header("📂 Data Input")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Upload file CSV (optional):",
+    type=["csv"],
+    help="Upload custom dataset anda, jika tidak, dataset default akan digunakan.",
 )
+
+if uploaded_file is not None:
+    st.sidebar.success("Custom dataset berhasil digunakan.")
+    df, meta_cols, q_cols = load_data(uploaded_file)
+else:
+    st.sidebar.info("Menggunakan dataset default.")
+    df, meta_cols, q_cols = load_data(
+        "data/Kuesioner Identifikasi Pola Gaya Belajar Mahasiswa melalui Metode Clustering (Responses) - Form responses 1.csv"
+    )
+
 
 # ---------------------- ENCODE & SCORES  -----------------
 enc = encode_answers(df, q_cols)
@@ -127,17 +142,17 @@ with tab1:
     col1, col2 = st.columns(2)
 
     with col1:
-        st.plotly_chart(fig_pie, width='content')
+        st.plotly_chart(fig_pie, config={"responsive": True})
 
     with col2:
-        st.plotly_chart(fig_bar, width='content')
+        st.plotly_chart(fig_bar, config={"responsive": True})
 
     # Show the data table below the charts
     st.markdown("---")
     st.subheader("📋 Data with Cluster Assignments")
     st.dataframe(
         kuisoner_data,
-        width='content',
+        width='stretch',
         hide_index=True
     )
 
@@ -164,7 +179,7 @@ with tab2:
     with col2:
         if style_choice == "All (2×2 Subplot)":
             fig_styles = figure_learning_style_subplots(kuisoner_data)
-            st.plotly_chart(fig_styles, width='content')
+            st.plotly_chart(fig_styles, config={"responsive": True})
         else:
             mapping = {
                 "Active vs Reflective (AR)": "AR",
@@ -191,7 +206,7 @@ with tab2:
                 height=500,
                 margin=dict(t=60, l=40, r=40, b=40)
             )
-            st.plotly_chart(fig_single, width='content')
+            st.plotly_chart(fig_single, config={"responsive": True})
 
 
 with tab3:
