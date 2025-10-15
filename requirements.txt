@@ -1,7 +1,6 @@
 streamlit
 pandas
-matplotlib.pyplot
-matplotlib
+matplotlib==3.9.0
 plotly
 numpy
 scikit-learn
