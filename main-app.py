@@ -65,7 +65,7 @@ X_scaled = scaler.fit_transform(scores)
 st.sidebar.header("⚙️ Pilih Metode Clustering")
 clustering_method = st.sidebar.selectbox("Metode:", ["Hierarchical (Ward)", "DBSCAN (Manual)"])
 if clustering_method == "Hierarchical (Ward)":
-    n_clusters = st.sidebar.slider("Jumlah Cluster (k):", 2, 10, 4)
+    n_clusters = st.sidebar.slider("Jumlah Cluster (k):", 2, 10, 3)
 else:
     eps = st.sidebar.slider("DBSCAN eps (radius)", 0.1, 2.0, 0.6, 0.1)
     min_pts = st.sidebar.slider("minPts", 2, 10, 3, 1)
