@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from scipy.cluster.hierarchy import dendrogram
 from sklearn.preprocessing import StandardScaler
 from methods.dbscan_manual import dbscan_manual, dbscan_summary
 from methods.heatmap_cluster import render_heatmap_tab
