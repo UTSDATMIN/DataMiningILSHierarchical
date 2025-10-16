@@ -70,6 +70,8 @@ else:
     min_pts = st.sidebar.slider("minPts", 2, 10, 3, 1)
 
 # ---- Jalankan manual hierarchical clustering (Ward) ----
+# --- Prevent NameError ---
+n_clusters, eps, min_pts = 3, 0.6, 3
 labels4 = agglomerative_clustering(X_scaled, n_clusters=n_clusters)
 kuisoner_data["Cluster"] = ["Cluster " + str(l) for l in labels4]
 
@@ -111,9 +113,6 @@ if clustering_method == "Hierarchical (Ward)":
     kuisoner_data["Cluster"] = ["Cluster " + str(l + 1) for l in labels]
 
 else:  # --- DBSCAN (Manual) ---
-    eps = st.sidebar.slider("DBSCAN eps (radius)", 0.1, 2.0, 0.6, 0.1)
-    min_pts = st.sidebar.slider("minPts", 2, 10, 3, 1)
-
     labels = dbscan_manual(X_scaled, eps=eps, min_pts=min_pts)
     kuisoner_data["Cluster"] = [
         f"Cluster {l + 1}" if l != -1 else "Noise" for l in labels
