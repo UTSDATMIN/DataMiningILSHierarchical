@@ -71,7 +71,7 @@ else:
 
 # ---- Jalankan manual hierarchical clustering (Ward) ----
 # --- Prevent NameError ---
-n_clusters, eps, min_pts = 3, 0.6, 3
+n_clusters, eps, min_pts = 3, 2, 5
 labels4 = agglomerative_clustering(X_scaled, n_clusters=n_clusters)
 kuisoner_data["Cluster"] = ["Cluster " + str(l) for l in labels4]
 
