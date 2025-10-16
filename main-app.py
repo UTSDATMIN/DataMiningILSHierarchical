@@ -150,10 +150,7 @@ if clustering_method == "Hierarchical (Ward)":
         st.dataframe(cluster_summary.set_index("Cluster"))
 
     with tab6:
-        st.subheader("🔥 Cluster Heatmap")
-        # Fungsi render_heatmap_tab perlu didefinisikan di modul Anda
-        # render_heatmap_tab(X_scaled, scores, agglomerative_with_history, n_clusters)
-        st.info("Fitur heatmap sedang dalam pengembangan.")
+        render_heatmap_tab(X_scaled, scores, agglomerative_with_history, n_clusters)
 
 
 # =====================================================================
@@ -266,10 +263,8 @@ else:  # --- DBSCAN (Manual) ---
             st.warning("Tidak ada cluster valid untuk diinterpretasi.")
 
     with tab6:
-        st.subheader("🔥 Cluster Heatmap")
-        # Fungsi render_heatmap_tab perlu didefinisikan di modul Anda
-        # render_heatmap_tab(X_scaled, scores, ...)
-        st.info("Fitur heatmap sedang dalam pengembangan.")
+        dbscan_n_clusters = summary['clusters'] 
+        render_heatmap_tab(X_scaled, scores, agglomerative_with_history, n_clusters)
 
 
 # ---- User Input & Prediction (di luar blok if/else) ----
