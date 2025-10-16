@@ -1,86 +1,79 @@
+
 import numpy as np
 import pandas as pd
 
-def euclidean_distance(a, b):
-    return np.sqrt(np.sum((a - b)**2))
-
-def region_query(X, point_idx, eps):
-    """Find all points within eps distance from point_idx."""
-    neighbors = []
-    for i in range(len(X)):
-        if euclidean_distance(X[point_idx], X[i]) <= eps:
-            neighbors.append(i)
-    return neighbors
-
-def expand_cluster(X, labels, point_idx, cluster_id, eps, min_pts, visited):
-    """Expand cluster from a core point."""
-    neighbors = region_query(X, point_idx, eps)
-    if len(neighbors) < min_pts:
-        labels[point_idx] = -1  # Noise
-        return False
-    else:
-        labels[point_idx] = cluster_id
-        for n in neighbors:
-            labels[n] = cluster_id
-
-        while neighbors:
-            current_point = neighbors.pop(0)
-            if not visited[current_point]:
-                visited[current_point] = True
-                new_neighbors = region_query(X, current_point, eps)
-                if len(new_neighbors) >= min_pts:
-                    for n in new_neighbors:
-                        if n not in neighbors:
-                            neighbors.append(n)
-            if labels[current_point] == -1:
-                labels[current_point] = cluster_id
-        return True
-
 def dbscan_manual(X, eps=0.5, min_pts=3):
     """
-    Manual implementation of DBSCAN (no sklearn).
-    Returns cluster labels (noise = -1).
+    Implementasi manual DBSCAN yang sudah diperbaiki.
+    
+    Status Label:
+      -2: Unvisited (Belum Dikunjungi)
+      -1: Noise
+      >=0: Cluster ID
     """
-    n_points = len(X)
-    labels = np.full(n_points, -1)  # start with all as noise
-    visited = np.zeros(n_points, dtype=bool)
+    n_points = X.shape[0]
+    # Inisialisasi semua titik sebagai 'Unvisited'
+    labels = np.full(n_points, -2) ## <-- PERUBAHAN: Mulai dengan -2 (Unvisited)
     cluster_id = 0
 
-    for i in range(n_points):
-        if visited[i]:
+    # Loop utama untuk setiap titik data
+    for point_idx in range(n_points):
+        # Lewati titik yang sudah menjadi bagian dari cluster lain
+        if labels[point_idx] != -2: ## <-- PERUBAHAN: Cek jika titik sudah punya label
             continue
-        visited[i] = True
-        neighbors = region_query(X, i, eps)
-        if len(neighbors) < min_pts:
-            labels[i] = -1  # still noise
-        else:
-            cluster_id += 1
-            labels[i] = cluster_id
-            for n in neighbors:
-                labels[n] = cluster_id
-            expand_cluster(X, labels, i, cluster_id, eps, min_pts, visited)
+
+        # Temukan tetangga untuk titik saat ini
+        distances = np.linalg.norm(X - X[point_idx], axis=1)
+        neighbors_indices = np.where(distances <= eps)[0]
+
+        # Cek apakah titik ini adalah noise atau core point
+        if len(neighbors_indices) < min_pts:
+            labels[point_idx] = -1 # Tandai sebagai Noise
+            continue
+        
+        # Titik ini adalah CORE POINT. Mulai perluasan cluster.
+        # Tandai titik awal dengan ID cluster baru
+        labels[point_idx] = cluster_id
+        
+        # Buat antrean (queue) yang berisi semua tetangga dari core point
+        queue = list(neighbors_indices)
+        
+        # Proses antrean sampai habis
+        head = 0
+        while head < len(queue):
+            current_point_idx = queue[head]
+            head += 1
+
+            # Jika tetangga adalah noise, selamatkan dan jadikan border point
+            if labels[current_point_idx] == -1:
+                labels[current_point_idx] = cluster_id
+            
+            # Jika tetangga belum dikunjungi, proses lebih lanjut
+            if labels[current_point_idx] == -2:
+                labels[current_point_idx] = cluster_id # Tambahkan ke cluster
+                
+                # Cari tetangga dari titik ini
+                new_distances = np.linalg.norm(X - X[current_point_idx], axis=1)
+                new_neighbors = np.where(new_distances <= eps)[0]
+                
+                # Jika tetangga ini juga core point, tambahkan semua tetangganya ke antrean
+                if len(new_neighbors) >= min_pts:
+                    queue.extend(new_neighbors) ## <-- PERUBAHAN: Logika perluasan inti ada di sini
+        
+        # Setelah cluster selesai diperluas, siapkan ID untuk cluster berikutnya
+        cluster_id += 1
+
     return labels
 
 
 def dbscan_summary(labels):
     """
-    Summarize DBSCAN results in a more detailed way.
-    Returns:
-        {
-            "clusters": <int>,              # number of non-noise clusters
-            "noise_points": <int>,          # count of noise points (-1)
-            "unique_labels": <list>,        # list of all labels (including -1)
-            "cluster_sizes": <dict>         # {cluster_label: number_of_points}
-        }
+    Fungsi ini sudah benar, tidak perlu diubah.
     """
     labels_series = pd.Series(labels)
-    # Count points per cluster (including noise)
     cluster_counts = labels_series.value_counts().sort_index().to_dict()
     
-    # Number of clusters (excluding noise)
     n_clusters = len([lbl for lbl in cluster_counts.keys() if lbl != -1])
-    
-    # Count of noise points
     n_noise = cluster_counts.get(-1, 0)
     
     return {
